@@ -11,7 +11,7 @@ func (p1 PHash) Distance(p2 PHash) (distance uint) {
 	hamming := p1 ^ p2
 
 	for hamming != 0 {
-		distance += 1
+		distance++
 		hamming &= hamming - 1
 	}
 	return
