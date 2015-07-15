@@ -1,7 +1,7 @@
 package disgo
 
 type entry struct {
-	filenames []string
+	locations []string
 }
 
 type db struct {
@@ -15,17 +15,28 @@ func init() {
 }
 
 func AddFile(filename string) error {
-	h, err := HashFile(filename)
+	phash, err := HashFile(filename)
 	if err != nil {
 		return err
 	}
-	e, found := DB.entries[h]
+	return AddLocation(filename, phash)
+}
+
+func AddLocation(location string, phash PHash) error {
+	e, found := DB.entries[phash]
 	if !found {
 		e = new(entry)
-		DB.entries[h] = e
+		DB.entries[phash] = e
 	}
-	e.filenames = append(e.filenames, filename)
+	e.locations = append(e.locations, location)
 	return nil
+}
+
+func Find(phash PHash) ([]string, error) {
+	if entry, found := DB.entries[phash]; found {
+		return entry.locations, nil
+	}
+	return []string{}, nil
 }
 
 func SearchByFile(filename string, maxDistance uint) ([]string, error) {
@@ -43,7 +54,7 @@ func SearchByHash(phash PHash, maxDistance uint) ([]string, error) {
 	// look for existing entry within maxDistance of the hash
 	for p, e := range DB.entries {
 		if p.Distance(phash) <= maxDistance {
-			results = append(results, e.filenames...)
+			results = append(results, e.locations...)
 		}
 	}
 
