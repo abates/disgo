@@ -22,6 +22,12 @@ var routes = Routes{
 		Search,
 	},
 	Route{
+		"Add",
+		"POST",
+		"/add",
+		Add,
+	},
+	Route{
 		"Show",
 		"GET",
 		"/image/{hash}",
