@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/mux"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strconv"
 )
@@ -14,19 +15,20 @@ type appHandler func(http.ResponseWriter, *http.Request) (interface{}, error)
 
 func (fn appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	i, err := fn(w, r)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(422)
-		if err := json.NewEncoder(w).Encode(err); err != nil {
-			panic(err)
-		}
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
-	if err = json.NewEncoder(w).Encode(i); err != nil {
-		panic(err)
+	if err != nil {
+		if err == disgo.ErrNotFound {
+			w.WriteHeader(404)
+			json.NewEncoder(w).Encode("Resource not found")
+		} else {
+			w.WriteHeader(422)
+			json.NewEncoder(w).Encode(err.Error())
+		}
+	} else {
+		w.WriteHeader(http.StatusOK)
+		if e := json.NewEncoder(w).Encode(i); e != nil {
+			log.Printf("Failed to encode output: %v", e)
+		}
 	}
 }
 
