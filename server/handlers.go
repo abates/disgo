@@ -43,26 +43,16 @@ func decode(r *http.Request, limit int64, v interface{}) error {
 	return json.Unmarshal(body, v)
 }
 
-type searchCriteria struct {
-	Hash     disgo.PHash `json:"hash"`
-	Distance uint        `json:"distance"`
-}
-
 func Search(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	var c searchCriteria
+	var c disgo.SearchCriteria
 	if err := decode(r, 10240, &c); err != nil {
 		return nil, err
 	}
 	return disgo.SearchByHash(c.Hash, c.Distance)
 }
 
-type imageInfo struct {
-	Hash     disgo.PHash `json:"hash"`
-	Location string      `json:"location"`
-}
-
 func Add(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	var i imageInfo
+	var i disgo.ImageInfo
 	if err := decode(r, 10240, &i); err != nil {
 		return nil, err
 	}
