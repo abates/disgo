@@ -1,5 +1,9 @@
 package disgo
 
+import (
+	"errors"
+)
+
 type entry struct {
 	locations []string
 }
@@ -7,6 +11,10 @@ type entry struct {
 type db struct {
 	entries map[PHash]*entry
 }
+
+var (
+	ErrNotFound = errors.New("Image not found")
+)
 
 var DB db
 
@@ -36,7 +44,7 @@ func Find(phash PHash) ([]string, error) {
 	if entry, found := DB.entries[phash]; found {
 		return entry.locations, nil
 	}
-	return []string{}, nil
+	return []string{}, ErrNotFound
 }
 
 func SearchByFile(filename string, maxDistance uint) ([]string, error) {
