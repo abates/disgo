@@ -2,10 +2,11 @@ package disgo
 
 import (
 	"errors"
+	"io"
 )
 
 type entry struct {
-	locations []string
+	paths []string
 }
 
 type DB struct {
@@ -22,36 +23,28 @@ func NewDB() (db *DB) {
 	return
 }
 
-func (db *DB) AddFile(filename string) (phash PHash, err error) {
-	phash, err = HashFile(filename)
-	if err == nil {
-		err = db.AddLocation(filename, phash)
-	}
-	return phash, err
-}
-
-func (db *DB) AddLocation(location string, phash PHash) error {
+func (db *DB) Add(path string, phash PHash) error {
 	e, found := db.entries[phash]
 	if !found {
 		e = new(entry)
 		db.entries[phash] = e
 	}
-	e.locations = append(e.locations, location)
+	e.paths = append(e.paths, path)
 	return nil
 }
 
-func (db *DB) Find(phash PHash) (locations []string, err error) {
+func (db *DB) Find(phash PHash) (paths []string, err error) {
 	if entry, found := db.entries[phash]; found {
-		locations = entry.locations
+		paths = entry.paths
 	} else {
 		err = ErrNotFound
 	}
 
-	return locations, err
+	return paths, err
 }
 
-func (db *DB) SearchByFile(filename string, maxDistance uint) (matches []string, err error) {
-	h, err := HashFile(filename)
+func (db *DB) SearchByFile(reader io.Reader, maxDistance uint) (matches []string, err error) {
+	h, err := HashFile(reader)
 	if err == nil {
 		matches, err = db.SearchByHash(h, maxDistance)
 	}
@@ -64,7 +57,7 @@ func (db *DB) SearchByHash(phash PHash, maxDistance uint) ([]string, error) {
 	// look for existing entry within maxDistance of the hash
 	for p, e := range db.entries {
 		if p.Distance(phash) <= maxDistance {
-			results = append(results, e.locations...)
+			results = append(results, e.paths...)
 		}
 	}
 

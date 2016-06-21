@@ -3,6 +3,7 @@ package disgo
 import (
 	"github.com/disintegration/imaging"
 	"image"
+	"io"
 )
 
 type PHash uint64
@@ -22,8 +23,8 @@ func intensity(img *image.NRGBA, row, column int) uint8 {
 	return uint8((uint16(img.Pix[offset]) + uint16(img.Pix[offset+1]) + uint16(img.Pix[offset+2])) / 3)
 }
 
-func HashFile(filename string) (hash PHash, err error) {
-	img, err := imaging.Open(filename)
+func HashFile(reader io.Reader) (hash PHash, err error) {
+	img, err := imaging.Decode(reader)
 	if err == nil {
 		hash, err = Hash(img)
 	}

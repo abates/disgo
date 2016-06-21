@@ -1,11 +1,13 @@
 package disgo
 
 import (
+	"os"
 	"testing"
 )
 
 func testHash(filename string, expected PHash, t *testing.T) {
-	h, _ := HashFile(filename)
+	file, _ := os.Open(filename)
+	h, _ := HashFile(file)
 	if h != expected {
 		t.Logf("Failed to calculate correct hash for image.  Hash was %x expecting %x", h, expected)
 		t.Fail()
