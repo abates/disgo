@@ -22,13 +22,13 @@ func intensity(img *image.NRGBA, row, column int) uint8 {
 	return uint8((uint16(img.Pix[offset]) + uint16(img.Pix[offset+1]) + uint16(img.Pix[offset+2])) / 3)
 }
 
-func HashFile(filename string) (PHash, error) {
+func HashFile(filename string) (hash PHash, err error) {
 	img, err := imaging.Open(filename)
-	if err != nil {
-		return 0, err
+	if err == nil {
+		hash, err = Hash(img)
 	}
 
-	return Hash(img)
+	return hash, err
 }
 
 func Hash(img image.Image) (PHash, error) {
