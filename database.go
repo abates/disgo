@@ -46,12 +46,12 @@ func (db *DB) Find(phash PHash) (paths []string, err error) {
 func (db *DB) SearchByFile(reader io.Reader, maxDistance uint) (matches []string, err error) {
 	h, err := HashFile(reader)
 	if err == nil {
-		matches, err = db.SearchByHash(h, maxDistance)
+		matches, err = db.Search(h, maxDistance)
 	}
 	return matches, err
 }
 
-func (db *DB) SearchByHash(phash PHash, maxDistance uint) ([]string, error) {
+func (db *DB) Search(phash PHash, maxDistance uint) ([]string, error) {
 	var results []string
 
 	// look for existing entry within maxDistance of the hash
