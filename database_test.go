@@ -13,18 +13,6 @@ func addFile(db *DB, path string) PHash {
 	return phash
 }
 
-func TestAddFile(t *testing.T) {
-	db := NewDB()
-
-	addFile(db, "images/ascendingGradient.png")
-
-	if len(db.entries) != 1 {
-		t.Log("Database should contain exactly one entry")
-		t.Fail()
-	}
-
-}
-
 func TestFind(t *testing.T) {
 	db := NewDB()
 	hash1 := addFile(db, "images/gopher1.png")

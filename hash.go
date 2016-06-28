@@ -1,6 +1,7 @@
 package disgo
 
 import (
+	"fmt"
 	"github.com/disintegration/imaging"
 	"image"
 	"io"
@@ -8,7 +9,7 @@ import (
 
 type PHash uint64
 
-func (p1 PHash) Distance(p2 PHash) (distance uint) {
+func (p1 PHash) Distance(p2 PHash) (distance int) {
 	hamming := p1 ^ p2
 
 	for hamming != 0 {
@@ -51,4 +52,8 @@ func Hash(img image.Image) (PHash, error) {
 		}
 	}
 	return hash, nil
+}
+
+func (h PHash) String() string {
+	return fmt.Sprintf("0x%016x   %064b", uint64(h), uint64(h))
 }

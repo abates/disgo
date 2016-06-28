@@ -20,7 +20,7 @@ func TestHash(t *testing.T) {
 	testHash("images/alternatingGradient.png", 0x00ff00ff00ff00ff, t)
 }
 
-func testDistance(v1, v2 PHash, expected uint, t *testing.T) {
+func testDistance(v1, v2 PHash, expected int, t *testing.T) {
 	d := v1.Distance(v2)
 	if d != expected {
 		t.Logf("Failed to compute hamming distance.  Expected %d got %d", expected, d)
