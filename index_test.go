@@ -43,39 +43,74 @@ func checkValue(t *testing.T, n *Node, expectedLen uint8, expectedValue PHash) {
 	}
 }
 
-func TestInsert(t *testing.T) {
-	i := NewIndex()
-	i.Insert(0x4a00000000000000)
+type expectedNode struct {
+	numChildren int
+	length      uint8
+	prefix      PHash
+	path        []int
+}
 
-	if len(i.root.children) < 1 {
-		t.Errorf("Expected the new value to be inserted into the root node")
+func nn(numChildren int, length uint8, prefix PHash, path ...int) expectedNode {
+	return expectedNode{
+		numChildren: numChildren,
+		length:      length,
+		prefix:      prefix,
+		path:        path,
+	}
+}
+
+func TestInsert(t *testing.T) {
+	tests := []struct {
+		hash          PHash
+		expectedNodes []expectedNode
+	}{
+		{0x4a00000000000000, []expectedNode{nn(0, 64, 0x4a00000000000000, 0)}},
+		{0x5d00000000000000, []expectedNode{
+			nn(2, 3, 0x4000000000000000, 0),
+			nn(0, 61, 0x5000000000000000, 0, 0),
+			nn(0, 61, 0xe800000000000000, 0, 1),
+		}},
+		{0x5900000000000000, []expectedNode{
+			nn(2, 3, 0x4000000000000000, 0),
+			nn(0, 61, 0x5000000000000000, 0, 0),
+			nn(2, 2, 0xc000000000000000, 0, 1),
+			nn(0, 59, 0xa000000000000000, 0, 1, 0),
+			nn(0, 59, 0x2000000000000000, 0, 1, 1),
+		}},
+		{0x6900000000000000, []expectedNode{
+			nn(2, 2, 0x4000000000000000, 0),
+			nn(2, 1, 0x0000000000000000, 0, 0),
+			nn(0, 61, 0x5000000000000000, 0, 0, 0),
+			nn(2, 2, 0xc000000000000000, 0, 0, 1),
+			nn(0, 59, 0xa000000000000000, 0, 0, 1, 0),
+			nn(0, 59, 0x2000000000000000, 0, 0, 1, 1),
+			nn(0, 62, 0xa400000000000000, 0, 1),
+		}},
 	}
 
-	checkValue(t, i.root.children[0], 64, 0x4a00000000000000)
+	i := NewIndex()
+	for _, test := range tests {
+		i.Insert(test.hash)
+		for _, n := range test.expectedNodes {
+			node := i.root
+			for _, index := range n.path {
+				node = node.children[index]
+			}
 
-	i.Insert(0x5d00000000000000)
+			if n.numChildren != len(node.children) {
+				t.Errorf("Expected %d children but got %d", n.numChildren, node.children)
+			}
 
-	checkValue(t, i.root.children[0], 3, 0x4000000000000000)
-	checkValue(t, i.root.children[0].children[0], 61, 0x5000000000000000)
-	checkValue(t, i.root.children[0].children[1], 61, 0xe800000000000000)
+			if n.length != node.length {
+				t.Errorf("Expected node prefix length to be %d but it was %d", n.length, node.length)
+			}
 
-	i.Insert(0x5900000000000000)
+			if n.prefix != node.prefix {
+				t.Errorf("Expected prefix to be 0x%016x but it was 0x%016x", n.prefix, node.prefix)
+			}
 
-	checkValue(t, i.root.children[0], 3, 0x4000000000000000)
-	checkValue(t, i.root.children[0].children[0], 61, 0x5000000000000000)
-	checkValue(t, i.root.children[0].children[1], 2, 0xc000000000000000)
-	checkValue(t, i.root.children[0].children[1].children[0], 59, 0xa000000000000000)
-	checkValue(t, i.root.children[0].children[1].children[1], 59, 0x2000000000000000)
-
-	i.Insert(0x6900000000000000)
-	checkValue(t, i.root.children[0], 2, 0x4000000000000000)
-	checkValue(t, i.root.children[0].children[0], 1, 0x0000000000000000)
-	checkValue(t, i.root.children[0].children[0].children[0], 61, 0x5000000000000000)
-	checkValue(t, i.root.children[0].children[0].children[1], 2, 0xc000000000000000)
-	checkValue(t, i.root.children[0].children[0].children[1].children[0], 59, 0xa000000000000000)
-	checkValue(t, i.root.children[0].children[0].children[1].children[1], 59, 0x2000000000000000)
-
-	checkValue(t, i.root.children[0].children[1], 62, 0xa400000000000000)
+		}
+	}
 }
 
 func TestSearch(t *testing.T) {
