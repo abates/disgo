@@ -74,31 +74,44 @@ func TestInsert(t *testing.T) {
 			nn(2, 3, 0x4000000000000000, 0),
 			nn(0, 61, 0x5000000000000000, 0, 0),
 			nn(2, 2, 0xc000000000000000, 0, 1),
-			nn(0, 59, 0xa000000000000000, 0, 1, 0),
-			nn(0, 59, 0x2000000000000000, 0, 1, 1),
+			nn(0, 59, 0x2000000000000000, 0, 1, 0),
+			nn(0, 59, 0xa000000000000000, 0, 1, 1),
 		}},
 		{0x6900000000000000, []expectedNode{
 			nn(2, 2, 0x4000000000000000, 0),
 			nn(2, 1, 0x0000000000000000, 0, 0),
 			nn(0, 61, 0x5000000000000000, 0, 0, 0),
 			nn(2, 2, 0xc000000000000000, 0, 0, 1),
-			nn(0, 59, 0xa000000000000000, 0, 0, 1, 0),
-			nn(0, 59, 0x2000000000000000, 0, 0, 1, 1),
+			nn(0, 59, 0x2000000000000000, 0, 0, 1, 0),
+			nn(0, 59, 0xa000000000000000, 0, 0, 1, 1),
 			nn(0, 62, 0xa400000000000000, 0, 1),
 		}},
 	}
 
-	i := NewIndex()
+	i := NewRadixIndex()
 	for _, test := range tests {
 		i.Insert(test.hash)
 		for _, n := range test.expectedNodes {
 			node := i.root
 			for _, index := range n.path {
-				node = node.children[index]
+				if index == 0 {
+					node = node.left
+				} else {
+					node = node.right
+				}
 			}
 
-			if n.numChildren != len(node.children) {
-				t.Errorf("Expected %d children but got %d", n.numChildren, node.children)
+			numChildren := 0
+			if node.left != nil {
+				numChildren++
+			}
+
+			if node.right != nil {
+				numChildren++
+			}
+
+			if n.numChildren != numChildren {
+				t.Errorf("Expected %d children but got %d", n.numChildren, numChildren)
 			}
 
 			if n.length != node.length {
@@ -108,13 +121,12 @@ func TestInsert(t *testing.T) {
 			if n.prefix != node.prefix {
 				t.Errorf("Expected prefix to be 0x%016x but it was 0x%016x", n.prefix, node.prefix)
 			}
-
 		}
 	}
 }
 
 func TestSearch(t *testing.T) {
-	i := NewIndex()
+	i := NewRadixIndex()
 	i.Insert(0x4a00000000000000)
 	i.Insert(0x5d00000000000000)
 	i.Insert(0x5900000000000000)

@@ -21,13 +21,14 @@ var bitmasks = []PHash{
 }
 
 type Node struct {
-	prefix   PHash
-	length   uint8
-	children []*Node
+	prefix PHash
+	length uint8
+	left   *Node
+	right  *Node
 }
 
 func (n *Node) IsLeaf() bool {
-	return len(n.children) == 0
+	return n.left == nil && n.right == nil
 }
 
 func (n *Node) String() string {
@@ -35,46 +36,51 @@ func (n *Node) String() string {
 }
 
 func (n *Node) Insert(value *Node) {
-	var match *Node
-	maxLength := uint8(0)
-
-	for _, child := range n.children {
-		childLength := child.Match(value.prefix)
-		if childLength > maxLength {
-			match = child
-			maxLength = childLength
-		}
+	if n.length == value.length && n.prefix == value.prefix {
+		return
 	}
 
-	if match != nil {
-		value.prefix = value.prefix << maxLength
-		value.length -= maxLength
+	matchLength := n.Match(value.prefix)
+	value.prefix = value.prefix << matchLength
+	value.length = value.length - matchLength
 
-		if maxLength < match.length {
-			newNode := &Node{
-				prefix:   match.prefix << maxLength,
-				length:   match.length - maxLength,
-				children: match.children,
-			}
+	if n.length > matchLength {
+		newNode := &Node{
+			prefix: n.prefix << matchLength,
+			length: n.length - matchLength,
+			left:   n.left,
+			right:  n.right,
+		}
 
-			match.length = maxLength
-			match.prefix = match.prefix & bitmasks[match.length]
-			match.children = []*Node{newNode, value}
-		} else if value.length > 0 {
-			match.Insert(value)
+		n.length = matchLength
+		n.prefix = n.prefix & bitmasks[matchLength]
+		if value.prefix&bitmasks[1] == 0 {
+			n.left = value
+			n.right = newNode
+		} else {
+			n.left = newNode
+			n.right = value
+		}
+	} else if n.IsLeaf() {
+		if value.prefix&bitmasks[1] == 0 {
+			n.left = value
+		} else {
+			n.right = value
 		}
 	} else {
-		if n.length > 0 {
-			n.children = append(n.children, &Node{
-				prefix: n.prefix << (n.length - value.length),
-				length: value.length,
-			})
-
-			n.length = n.length - value.length
-			n.prefix = n.prefix & bitmasks[n.length]
+		if value.prefix&bitmasks[1] == 0 {
+			if n.left == nil {
+				n.left = value
+			} else {
+				n.left.Insert(value)
+			}
+		} else {
+			if n.right == nil {
+				n.right = value
+			} else {
+				n.right.Insert(value)
+			}
 		}
-
-		n.children = append(n.children, value)
 	}
 }
 
@@ -99,21 +105,30 @@ func (n *Node) Search(search PHash, match PHash, distance int) []PHash {
 		return []PHash{match}
 	}
 
-	matches := make([]PHash, 0)
-	for _, child := range n.children {
-		matches = append(matches, child.Search(search, match, distance)...)
+	var leftMatches, rightMatches []PHash
+	if n.left != nil {
+		leftMatches = n.left.Search(search, match, distance)
 	}
-	return matches
+
+	if n.right != nil {
+		rightMatches = n.right.Search(search, match, distance)
+	}
+
+	if leftMatches != nil && rightMatches != nil {
+		return append(leftMatches, rightMatches...)
+	} else if leftMatches != nil {
+		return leftMatches
+	}
+	return rightMatches
 }
 
 func (n *Node) Match(value PHash) (length uint8) {
-	b := PHash(0x8000000000000000)
-	for l := uint8(0); l < n.length; l++ {
-		if value&b != n.prefix&b {
+	length = n.length
+	for length = n.length; length > 0; length-- {
+		mask := bitmasks[length]
+		if value&mask == n.prefix&mask {
 			break
 		}
-		length += 1
-		b = b >> 1
 	}
 	return
 }
@@ -121,10 +136,15 @@ func (n *Node) Match(value PHash) (length uint8) {
 func (n *Node) Lookup(value PHash) *Node {
 	var match *Node
 	var maxLength uint8
-	for _, child := range n.children {
-		length := child.Match(value)
+	if n.left != nil {
+		match = n.left
+		maxLength = n.left.Match(value)
+	}
+
+	if n.right != nil {
+		length := n.right.Match(value)
 		if length > maxLength {
-			match = child
+			match = n.right
 			maxLength = length
 		}
 	}
@@ -136,19 +156,19 @@ func (n *Node) Lookup(value PHash) *Node {
 	return match.Lookup(value << maxLength)
 }
 
-type Index struct {
+type RadixIndex struct {
 	root *Node
 }
 
-func NewIndex() *Index {
-	i := new(Index)
+func NewRadixIndex() *RadixIndex {
+	i := new(RadixIndex)
 	i.root = new(Node)
 	i.root.prefix = 0
 	i.root.length = 0
 	return i
 }
 
-func (i *Index) Insert(hash PHash) error {
+func (i *RadixIndex) Insert(hash PHash) error {
 	node := &Node{
 		prefix: hash,
 		length: 64,
@@ -157,6 +177,6 @@ func (i *Index) Insert(hash PHash) error {
 	return nil
 }
 
-func (i *Index) Search(hash PHash, distance int) ([]PHash, error) {
+func (i *RadixIndex) Search(hash PHash, distance int) ([]PHash, error) {
 	return i.root.Search(hash, 0x00, distance), nil
 }

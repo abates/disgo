@@ -2,7 +2,6 @@ package disgo
 
 import (
 	"errors"
-	//"fmt"
 	"io"
 )
 
@@ -10,14 +9,23 @@ var (
 	ErrNotFound = errors.New("Image not found")
 )
 
+type Index interface {
+	Insert(PHash) error
+	Search(PHash, int) ([]PHash, error)
+}
+
 type DB struct {
-	index *Index
+	index Index
 	paths map[PHash][]string
 }
 
-func NewDB() *DB {
+func New() *DB {
+	return NewDB(NewRadixIndex())
+}
+
+func NewDB(index Index) *DB {
 	r := new(DB)
-	r.index = NewIndex()
+	r.index = index
 	r.paths = make(map[PHash][]string)
 	return r
 }
