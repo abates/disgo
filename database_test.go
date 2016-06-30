@@ -1,7 +1,6 @@
 package disgo
 
 import (
-	"io"
 	"math/rand"
 	"os"
 	"sort"
