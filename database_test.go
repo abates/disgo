@@ -139,8 +139,7 @@ func BenchmarkRadixIndexAdd100(b *testing.B)   { benchmarkAdd(b, NewRadixIndex()
 func BenchmarkRadixIndexAdd1000(b *testing.B)  { benchmarkAdd(b, NewRadixIndex(), 1000) }
 func BenchmarkRadixIndexAdd10000(b *testing.B) { benchmarkAdd(b, NewRadixIndex(), 10000) }
 
-func BenchmarkRadixIndexSearch10(b *testing.B)     { benchmarkSearch(b, NewRadixIndex(), 10) }
-func BenchmarkRadixIndexSearch100(b *testing.B)    { benchmarkSearch(b, NewRadixIndex(), 100) }
-func BenchmarkRadixIndexSearch1000(b *testing.B)   { benchmarkSearch(b, NewRadixIndex(), 1000) }
-func BenchmarkRadixIndexSearch10000(b *testing.B)  { benchmarkSearch(b, NewRadixIndex(), 10000) }
-func BenchmarkRadixIndexSearch100000(b *testing.B) { benchmarkSearch(b, NewRadixIndex(), 100000) }
+func BenchmarkRadixIndexSearch10(b *testing.B)    { benchmarkSearch(b, NewRadixIndex(), 10) }
+func BenchmarkRadixIndexSearch100(b *testing.B)   { benchmarkSearch(b, NewRadixIndex(), 100) }
+func BenchmarkRadixIndexSearch1000(b *testing.B)  { benchmarkSearch(b, NewRadixIndex(), 1000) }
+func BenchmarkRadixIndexSearch10000(b *testing.B) { benchmarkSearch(b, NewRadixIndex(), 10000) }

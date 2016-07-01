@@ -133,27 +133,23 @@ func (n *Node) Match(value PHash) (length uint8) {
 	return
 }
 
-func (n *Node) Lookup(value PHash) *Node {
-	var match *Node
-	var maxLength uint8
-	if n.left != nil {
-		match = n.left
-		maxLength = n.left.Match(value)
-	}
-
-	if n.right != nil {
-		length := n.right.Match(value)
-		if length > maxLength {
-			match = n.right
-			maxLength = length
+func (n *Node) Lookup(value PHash) (*Node, uint8) {
+	length := n.Match(value)
+	value = value << length
+	if length < n.length {
+		return n, length
+	} else if value&bitmasks[1] == 0 {
+		if n.left == nil {
+			return n, length
 		}
+		match, l := n.left.Lookup(value)
+		return match, length + l
 	}
-
-	if match == nil {
-		return n
+	if n.right == nil {
+		return n, length
 	}
-
-	return match.Lookup(value << maxLength)
+	match, l := n.right.Lookup(value)
+	return match, length + l
 }
 
 type RadixIndex struct {

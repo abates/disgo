@@ -1,8 +1,6 @@
 package disgo
 
 import (
-	"fmt"
-	"runtime"
 	"testing"
 )
 
@@ -17,29 +15,6 @@ func TestMatch(t *testing.T) {
 
 	if length != 5 {
 		t.Errorf("Expected length 5 got %d", length)
-	}
-}
-
-func up(frame int, s string) string {
-	_, origFile, origLine, _ := runtime.Caller(1)
-	_, frameFile, frameLine, _ := runtime.Caller(frame + 1)
-	if origFile != frameFile {
-		return s // Deferred call after a panic or runtime.Goexit()
-	}
-	erase := []byte("\b\b\b")
-	for ; origLine > 9; origLine /= 10 {
-		erase = append(erase, '\b')
-	}
-	return fmt.Sprintf("%s%d: %s", erase, frameLine, s)
-}
-
-func checkValue(t *testing.T, n *Node, expectedLen uint8, expectedValue PHash) {
-	if n.prefix != expectedValue {
-		t.Errorf(up(1, "Expected 0x%016x, but got 0x%016x"), expectedValue, n.prefix)
-	}
-
-	if n.length != expectedLen {
-		t.Errorf(up(1, "Expected length %d but got %d"), expectedLen, n.length)
 	}
 }
 
@@ -119,9 +94,25 @@ func TestInsert(t *testing.T) {
 			}
 
 			if n.prefix != node.prefix {
-				t.Errorf("Expected prefix to be 0x%016x but it was 0x%016x", n.prefix, node.prefix)
+				t.Errorf("Expected prefix to be 0x%016x but it was 0x%016x", uint64(n.prefix), uint64(node.prefix))
 			}
 		}
+	}
+}
+
+func TestLookup(t *testing.T) {
+	i := NewRadixIndex()
+	i.Insert(0x4a00000000000000)
+	i.Insert(0x5d00000000000000)
+	i.Insert(0x5900000000000000)
+	i.Insert(0x6900000000000000)
+
+	match, length := i.root.Lookup(0x6f00000000000000)
+	if match.prefix != 0xa400000000000000 {
+		t.Errorf("Expected prefix 0x%016x got 0x%016x", uint64(0xa400000000000000), uint64(match.prefix))
+	}
+	if length != 5 {
+		t.Errorf("Expected length 5 got length %d", length)
 	}
 }
 
