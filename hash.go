@@ -19,9 +19,15 @@ func (p1 PHash) Distance(p2 PHash) (distance int) {
 	return
 }
 
-func intensity(img *image.NRGBA, row, column int) uint8 {
+/*func intensity(img *image.NRGBA, row, column int) uint8 {
 	offset := (row-img.Rect.Min.Y)*img.Stride + (column-img.Rect.Min.X)*4
 	return uint8((uint16(img.Pix[offset]) + uint16(img.Pix[offset+1]) + uint16(img.Pix[offset+2])) / 3)
+}*/
+
+func intensity(img image.Image, row, column int) uint8 {
+	c := img.At(column, row)
+	r, g, b, _ := c.RGBA()
+	return uint8((r + g + b) / 3)
 }
 
 func HashFile(reader io.Reader) (hash PHash, err error) {
@@ -38,13 +44,13 @@ func Hash(img image.Image) (PHash, error) {
 	columns := 9
 	var hash PHash
 
-	grayscale := imaging.Grayscale(img)
-	grayscale = imaging.Resize(grayscale, columns, rows, imaging.Box)
+	img = imaging.Grayscale(img)
+	img = imaging.Resize(img, columns, rows, imaging.Box)
 
 	for row := 0; row < rows; row++ {
 		for column := 0; column < columns-1; column++ {
-			avg1 := intensity(grayscale, row, column)
-			avg2 := intensity(grayscale, row, column+1)
+			avg1 := intensity(img, row, column)
+			avg2 := intensity(img, row, column+1)
 			hash = hash << 1
 			if avg1 > avg2 {
 				hash = hash | 0x01

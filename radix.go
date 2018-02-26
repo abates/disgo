@@ -2,6 +2,7 @@ package disgo
 
 import (
 	"fmt"
+	"io"
 )
 
 var bitmasks = []PHash{
@@ -20,6 +21,20 @@ var bitmasks = []PHash{
 	0xfffffffffffffff0, 0xfffffffffffffff8, 0xfffffffffffffffc, 0xfffffffffffffffe, 0xffffffffffffffff,
 }
 
+type nodeFlags byte
+
+func (flags nodeFlags) HasLeft() bool  { return flags&0x80 == 0x80 }
+func (flags *nodeFlags) setHasLeft()   { (*flags) |= 0x80 }
+func (flags nodeFlags) HasRight() bool { return flags&0x40 == 0x40 }
+func (flags *nodeFlags) setHasRight()  { (*flags) |= 0x40 }
+
+type radixNode interface {
+	Insert(*Node)
+	Search(PHash, PHash, int) []PHash
+	Encode(io.Writer) error
+	Decode(io.Reader) error
+}
+
 type Node struct {
 	prefix PHash
 	length uint8
@@ -31,8 +46,15 @@ func (n *Node) IsLeaf() bool {
 	return n.left == nil && n.right == nil
 }
 
-func (n *Node) String() string {
-	return fmt.Sprintf("%2d   %v", n.length, n.prefix)
+func (n *Node) Match(value PHash) (length uint8) {
+	length = n.length
+	for length = n.length; length > 0; length-- {
+		mask := bitmasks[length]
+		if value&mask == n.prefix&mask {
+			break
+		}
+	}
+	return
 }
 
 func (n *Node) Insert(value *Node) {
@@ -62,6 +84,7 @@ func (n *Node) Insert(value *Node) {
 			n.right = value
 		}
 	} else if n.IsLeaf() {
+		n.prefix = n.prefix & bitmasks[matchLength]
 		if value.prefix&bitmasks[1] == 0 {
 			n.left = value
 		} else {
@@ -89,6 +112,10 @@ func (n *Node) distance(hash PHash) int {
 }
 
 func (n *Node) Search(search PHash, match PHash, distance int) []PHash {
+	if n == nil {
+		return nil
+	}
+
 	// add my prefix to the match
 	if n.length > 0 {
 		match = match << n.length
@@ -105,74 +132,123 @@ func (n *Node) Search(search PHash, match PHash, distance int) []PHash {
 		return []PHash{match}
 	}
 
-	var leftMatches, rightMatches []PHash
+	matches := n.left.Search(search, match, distance)
+	matches = append(matches, n.right.Search(search, match, distance)...)
+	return matches
+}
+
+func (n *Node) Encode(writer io.Writer) error {
+	if n == nil {
+		return nil
+	}
+
+	buf := make([]byte, 10)
+	flags := nodeFlags(0x00)
 	if n.left != nil {
-		leftMatches = n.left.Search(search, match, distance)
+		flags.setHasLeft()
 	}
 
 	if n.right != nil {
-		rightMatches = n.right.Search(search, match, distance)
+		flags.setHasRight()
 	}
 
-	if leftMatches != nil && rightMatches != nil {
-		return append(leftMatches, rightMatches...)
-	} else if leftMatches != nil {
-		return leftMatches
+	buf[0] = byte(flags)
+	buf[1] = byte(n.length)
+	buf[2] = byte(n.prefix >> 56)
+	buf[3] = byte(n.prefix >> 48)
+	buf[4] = byte(n.prefix >> 40)
+	buf[5] = byte(n.prefix >> 32)
+	buf[6] = byte(n.prefix >> 24)
+	buf[7] = byte(n.prefix >> 16)
+	buf[8] = byte(n.prefix >> 8)
+	buf[9] = byte(n.prefix)
+
+	_, err := writer.Write(buf)
+	if err == nil {
+		err = n.left.Encode(writer)
 	}
-	return rightMatches
+
+	if err == nil {
+		err = n.right.Encode(writer)
+	}
+	return err
 }
 
-func (n *Node) Match(value PHash) (length uint8) {
-	length = n.length
-	for length = n.length; length > 0; length-- {
-		mask := bitmasks[length]
-		if value&mask == n.prefix&mask {
-			break
+func (n *Node) Decode(reader io.Reader) error {
+	buf := make([]byte, 10)
+	_, err := reader.Read(buf)
+	if err == nil {
+		n.left = nil
+		n.right = nil
+
+		flags := nodeFlags(buf[0])
+		n.length = buf[1]
+		n.prefix = PHash(buf[2]) << 56
+		n.prefix |= PHash(buf[3]) << 48
+		n.prefix |= PHash(buf[4]) << 40
+		n.prefix |= PHash(buf[5]) << 32
+		n.prefix |= PHash(buf[6]) << 24
+		n.prefix |= PHash(buf[7]) << 16
+		n.prefix |= PHash(buf[8]) << 8
+		n.prefix |= PHash(buf[9])
+
+		if flags.HasLeft() {
+			n.left = &Node{}
+			n.left.Decode(reader)
+		}
+
+		if flags.HasRight() {
+			n.right = &Node{}
+			n.right.Decode(reader)
 		}
 	}
-	return
+	return err
 }
 
-func (n *Node) Lookup(value PHash) (*Node, uint8) {
-	length := n.Match(value)
-	value = value << length
-	if length < n.length {
-		return n, length
-	} else if value&bitmasks[1] == 0 {
-		if n.left == nil {
-			return n, length
-		}
-		match, l := n.left.Lookup(value)
-		return match, length + l
+func (n *Node) Equal(other *Node) bool {
+	if n == other {
+		return true
+	} else if n == nil || other == nil {
+		return false
 	}
-	if n.right == nil {
-		return n, length
+
+	if n.prefix == other.prefix && n.length == other.length {
+		return n.left.Equal(other.left) && n.right.Equal(other.right)
 	}
-	match, l := n.right.Lookup(value)
-	return match, length + l
+	return false
+}
+
+func (n *Node) String() string {
+	return fmt.Sprintf("%2d   %v", n.length, n.prefix)
 }
 
 type RadixIndex struct {
-	root *Node
+	root radixNode
 }
 
 func NewRadixIndex() *RadixIndex {
-	i := new(RadixIndex)
-	i.root = new(Node)
-	i.root.prefix = 0
-	i.root.length = 0
-	return i
+	ri := new(RadixIndex)
+	ri.root = &Node{}
+	return ri
 }
 
-func (i *RadixIndex) Insert(hash PHash) error {
+func (ri *RadixIndex) Insert(hash PHash) error {
 	node := &Node{
 		prefix: hash,
 		length: 64,
 	}
-	i.root.Insert(node)
+	ri.root.Insert(node)
 	return nil
 }
 
-func (i *RadixIndex) Search(hash PHash, distance int) ([]PHash, error) {
-	return i.root.Search(hash, 0x00, distance), nil
+func (ri *RadixIndex) Search(hash PHash, distance int) ([]PHash, error) {
+	return ri.root.Search(hash, 0x00, distance), nil
+}
+
+func (ri *RadixIndex) Save(writer io.Writer) error {
+	return ri.root.Encode(writer)
+}
+
+func (ri *RadixIndex) Load(reader io.Reader) error {
+	return ri.root.Decode(reader)
 }

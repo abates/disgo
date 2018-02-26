@@ -1,129 +1,128 @@
 package disgo
 
 import (
-	"math/rand"
-	"os"
-	"sort"
+	"bytes"
+	"fmt"
+	"image"
+	"io"
+	"reflect"
 	"testing"
 )
 
-func addFile(db *DB, path string) PHash {
-	file, _ := os.Open(path)
-	phash, _ := HashFile(file)
-	db.Add(path, phash)
-	return phash
+type testIndex struct {
+	err     error
+	matches []PHash
 }
 
-func TestFind(t *testing.T) {
-	db := New()
-	hash1 := addFile(db, "images/gopher1.png")
-	hash2 := addFile(db, "images/gopher2.png")
+func (ti *testIndex) Insert(PHash) error                 { return ti.err }
+func (ti *testIndex) Search(PHash, int) ([]PHash, error) { return ti.matches, ti.err }
 
-	entries, _ := db.Find(hash1)
-	if len(entries) != 2 {
-		t.Logf("Expected to find two entries for hash %v but only got %d", hash1, len(entries))
-		t.Fail()
-	}
-
-	entries, _ = db.Find(hash2)
-	if len(entries) != 2 {
-		t.Logf("Expected to find two entries for hash %v but only got %d", hash2, len(entries))
-		t.Fail()
-	}
-
-	file, _ := os.Open("images/ascendingGradient.png")
-	hash3, _ := HashFile(file)
-	entries, err := db.Find(hash3)
-	if len(entries) > 0 {
-		t.Logf("Expected not to find hash %v but found %d entries", hash3, len(entries))
-		t.Fail()
-	}
-
-	if err != ErrNotFound {
-		t.Logf("Expected %v but got %v", ErrNotFound, err)
-		t.Fail()
-	}
+func newTestIndex() *testIndex {
+	return &testIndex{}
 }
 
-func TestSearchByFile(t *testing.T) {
-	for _, i := range []Index{NewRadixIndex(), NewLinearIndex()} {
-		db := NewDB(i)
-		addFile(db, "images/ascendingGradient.png")
-		addFile(db, "images/descendingGradient.png")
-		addFile(db, "images/alternatingGradient.png")
-		addFile(db, "images/gopher1.png")
-		addFile(db, "images/gopher2.png")
+func TestDBAdd(t *testing.T) {
+	tests := []struct {
+		img         image.Image
+		expectedErr error
+	}{
+		{image.NewRGBA(image.Rect(0, 0, 10, 10)), nil},
+		{image.NewRGBA(image.Rect(0, 0, 10, 10)), fmt.Errorf("Just some test error")},
+	}
 
-		file, _ := os.Open("images/gopher3.png")
-		paths, err := db.SearchByFile(file, 5)
-		if err != nil {
-			t.Logf("Expected no error while searching by file.  Got: %v", err)
-			t.Fail()
-		}
+	for i, test := range tests {
+		db := NewDB(newTestIndex())
+		db.imageHasher = func(image.Image) (PHash, error) { return PHash(0), test.expectedErr }
 
-		if len(paths) != 2 {
-			t.Logf("Expected exactly two matching images.  Got: %d", len(paths))
-			t.FailNow()
-		}
-
-		sort.Strings(paths)
-		if paths[0] != "images/gopher1.png" {
-			t.Logf("Expected to match images/gopher1.png but got %s instead", paths[0])
-			t.Fail()
-		}
-
-		if paths[1] != "images/gopher2.png" {
-			t.Logf("Expected to match images/gopher2.png but got %s instead", paths[1])
-			t.Fail()
+		_, err := db.Add(test.img)
+		if err != test.expectedErr {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedErr, err)
 		}
 	}
 }
 
-var benchmarkHashes []PHash
-
-func getHashes(numHashes int) []PHash {
-	if benchmarkHashes == nil {
-		benchmarkHashes = make([]PHash, 0)
+func TestDBAddFile(t *testing.T) {
+	tests := []struct {
+		reader      io.Reader
+		expectedErr error
+	}{
+		{bytes.NewReader([]byte{}), nil},
+		{bytes.NewReader([]byte{}), fmt.Errorf("Just some test error")},
 	}
 
-	for len(benchmarkHashes) < numHashes {
-		randomNumber := PHash(rand.Int63())
-		if rand.NormFloat64() >= 0 {
-			randomNumber = randomNumber | 0x8000000000000000
-		}
-		benchmarkHashes = append(benchmarkHashes, randomNumber)
-	}
-	return benchmarkHashes
-}
-
-func benchmarkAdd(b *testing.B, index Index, numToAdd int) {
-	hashes := getHashes(numToAdd)
-	b.ResetTimer()
-
-	for n := 0; n < b.N; n++ {
-		db := NewDB(index)
-		for i := 0; i < numToAdd; i++ {
-			db.Add("filename", hashes[i])
+	for i, test := range tests {
+		db := NewDB(newTestIndex())
+		db.fileHasher = func(io.Reader) (PHash, error) { return PHash(0), test.expectedErr }
+		_, err := db.AddFile(test.reader)
+		if err != test.expectedErr {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedErr, err)
 		}
 	}
 }
 
-func benchmarkSearch(b *testing.B, index Index, numToSearch int) {
-	hashes := getHashes(numToSearch)
-
-	db := NewDB(index)
-	for _, hash := range hashes {
-		db.Add("filename", hash)
+func TestDBSearch(t *testing.T) {
+	tests := []struct {
+		img               image.Image
+		expectedMatches   []PHash
+		expectedHashErr   error
+		expectedSearchErr error
+	}{
+		{image.NewRGBA(image.Rect(0, 0, 10, 10)), []PHash{}, nil, nil},
+		{image.NewRGBA(image.Rect(0, 0, 10, 10)), []PHash{}, nil, fmt.Errorf("Some test error")},
 	}
 
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		for i := 0; i < numToSearch; i++ {
-			db.Search(hashes[i], 5)
+	for i, test := range tests {
+		testIndex := newTestIndex()
+		testIndex.err = test.expectedSearchErr
+		testIndex.matches = test.expectedMatches
+		db := NewDB(testIndex)
+		db.imageHasher = func(image.Image) (PHash, error) { return PHash(0), test.expectedHashErr }
+
+		matches, err := db.Search(test.img, 0)
+		if test.expectedHashErr != nil && err != test.expectedHashErr {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedHashErr, err)
+		} else if test.expectedSearchErr != nil && err != test.expectedSearchErr {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedSearchErr, err)
+		}
+
+		if !reflect.DeepEqual(test.expectedMatches, matches) {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedMatches, matches)
 		}
 	}
 }
 
+func TestDBSearchByFile(t *testing.T) {
+	tests := []struct {
+		reader            io.Reader
+		expectedMatches   []PHash
+		expectedHashErr   error
+		expectedSearchErr error
+	}{
+		{bytes.NewReader([]byte{}), []PHash{}, nil, nil},
+		{bytes.NewReader([]byte{}), []PHash{}, nil, fmt.Errorf("Some test error")},
+	}
+
+	for i, test := range tests {
+		testIndex := newTestIndex()
+		testIndex.err = test.expectedSearchErr
+		testIndex.matches = test.expectedMatches
+		db := NewDB(testIndex)
+		db.fileHasher = func(io.Reader) (PHash, error) { return PHash(0), test.expectedHashErr }
+
+		matches, err := db.SearchByFile(test.reader, 0)
+		if test.expectedHashErr != nil && err != test.expectedHashErr {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedHashErr, err)
+		} else if test.expectedSearchErr != nil && err != test.expectedSearchErr {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedSearchErr, err)
+		}
+
+		if !reflect.DeepEqual(test.expectedMatches, matches) {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedMatches, matches)
+		}
+	}
+}
+
+/*
 func BenchmarkLinearIndexAdd10(b *testing.B)    { benchmarkAdd(b, NewLinearIndex(), 10) }
 func BenchmarkLinearIndexAdd100(b *testing.B)   { benchmarkAdd(b, NewLinearIndex(), 100) }
 func BenchmarkLinearIndexAdd1000(b *testing.B)  { benchmarkAdd(b, NewLinearIndex(), 1000) }
@@ -143,3 +142,4 @@ func BenchmarkRadixIndexSearch10(b *testing.B)    { benchmarkSearch(b, NewRadixI
 func BenchmarkRadixIndexSearch100(b *testing.B)   { benchmarkSearch(b, NewRadixIndex(), 100) }
 func BenchmarkRadixIndexSearch1000(b *testing.B)  { benchmarkSearch(b, NewRadixIndex(), 1000) }
 func BenchmarkRadixIndexSearch10000(b *testing.B) { benchmarkSearch(b, NewRadixIndex(), 10000) }
+*/
