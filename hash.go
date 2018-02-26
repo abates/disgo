@@ -2,9 +2,9 @@ package disgo
 
 import (
 	"fmt"
-	"github.com/disintegration/imaging"
 	"image"
-	"io"
+
+	"github.com/disintegration/imaging"
 )
 
 type PHash uint64
@@ -19,24 +19,10 @@ func (p1 PHash) Distance(p2 PHash) (distance int) {
 	return
 }
 
-/*func intensity(img *image.NRGBA, row, column int) uint8 {
-	offset := (row-img.Rect.Min.Y)*img.Stride + (column-img.Rect.Min.X)*4
-	return uint8((uint16(img.Pix[offset]) + uint16(img.Pix[offset+1]) + uint16(img.Pix[offset+2])) / 3)
-}*/
-
 func intensity(img image.Image, row, column int) uint8 {
 	c := img.At(column, row)
 	r, g, b, _ := c.RGBA()
 	return uint8((r + g + b) / 3)
-}
-
-func HashFile(reader io.Reader) (hash PHash, err error) {
-	img, err := imaging.Decode(reader)
-	if err == nil {
-		hash, err = Hash(img)
-	}
-
-	return hash, err
 }
 
 func Hash(img image.Image) (PHash, error) {

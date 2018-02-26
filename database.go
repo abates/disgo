@@ -4,6 +4,8 @@ import (
 	"errors"
 	"image"
 	"io"
+
+	"github.com/disintegration/imaging"
 )
 
 var (
@@ -26,9 +28,8 @@ type Loadable interface {
 }
 
 type DB struct {
-	index       Index
-	imageHasher func(image.Image) (PHash, error)
-	fileHasher  func(io.Reader) (PHash, error)
+	index  Index
+	hasher func(image.Image) (PHash, error)
 }
 
 func New() *DB {
@@ -37,25 +38,24 @@ func New() *DB {
 
 func NewDB(index Index) *DB {
 	r := &DB{
-		index:       index,
-		imageHasher: Hash,
-		fileHasher:  HashFile,
+		index:  index,
+		hasher: Hash,
 	}
 	return r
 }
 
 func (db *DB) Add(img image.Image) (PHash, error) {
-	hash, err := db.imageHasher(img)
+	hash, err := db.hasher(img)
 	if err == nil {
 		err = db.AddHash(hash)
 	}
 	return hash, err
 }
 
-func (db *DB) AddFile(reader io.Reader) (PHash, error) {
-	hash, err := db.fileHasher(reader)
+func (db *DB) AddFile(reader io.Reader) (hash PHash, err error) {
+	img, err := imaging.Decode(reader)
 	if err == nil {
-		err = db.AddHash(hash)
+		hash, err = db.Add(img)
 	}
 	return hash, err
 }
@@ -80,7 +80,7 @@ func (db *DB) Load(reader io.Reader) error {
 }
 
 func (db *DB) Search(img image.Image, maxDistance int) (matches []PHash, err error) {
-	hash, err := db.imageHasher(img)
+	hash, err := db.hasher(img)
 	if err == nil {
 		matches, err = db.SearchByHash(hash, maxDistance)
 	}
@@ -88,9 +88,9 @@ func (db *DB) Search(img image.Image, maxDistance int) (matches []PHash, err err
 }
 
 func (db *DB) SearchByFile(reader io.Reader, maxDistance int) (matches []PHash, err error) {
-	h, err := db.fileHasher(reader)
+	img, err := imaging.Decode(reader)
 	if err == nil {
-		matches, err = db.SearchByHash(h, maxDistance)
+		matches, err = db.Search(img, maxDistance)
 	}
 	return matches, err
 }

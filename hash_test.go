@@ -1,9 +1,7 @@
 package disgo
 
 import (
-	"bytes"
 	"image"
-	"image/png"
 	"testing"
 )
 
@@ -94,9 +92,7 @@ func TestHash(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		buf := bytes.NewBuffer([]byte{})
-		png.Encode(buf, test.img)
-		hash, _ := HashFile(buf)
+		hash, _ := Hash(test.img)
 		if hash != test.expectedHash {
 			t.Errorf("tests[%d] expected %x got %x", i, test.expectedHash, hash)
 		}

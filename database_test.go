@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"image"
-	"io"
+	"image/png"
 	"reflect"
 	"testing"
 )
@@ -32,7 +32,7 @@ func TestDBAdd(t *testing.T) {
 
 	for i, test := range tests {
 		db := NewDB(newTestIndex())
-		db.imageHasher = func(image.Image) (PHash, error) { return PHash(0), test.expectedErr }
+		db.hasher = func(image.Image) (PHash, error) { return PHash(0), test.expectedErr }
 
 		_, err := db.Add(test.img)
 		if err != test.expectedErr {
@@ -43,17 +43,19 @@ func TestDBAdd(t *testing.T) {
 
 func TestDBAddFile(t *testing.T) {
 	tests := []struct {
-		reader      io.Reader
 		expectedErr error
 	}{
-		{bytes.NewReader([]byte{}), nil},
-		{bytes.NewReader([]byte{}), fmt.Errorf("Just some test error")},
+		{nil},
+		{fmt.Errorf("Just some test error")},
 	}
 
 	for i, test := range tests {
 		db := NewDB(newTestIndex())
-		db.fileHasher = func(io.Reader) (PHash, error) { return PHash(0), test.expectedErr }
-		_, err := db.AddFile(test.reader)
+		db.hasher = func(image.Image) (PHash, error) { return PHash(0), test.expectedErr }
+		image := image.NewAlpha(image.Rect(0, 0, 1, 1))
+		buf := bytes.NewBuffer([]byte{})
+		png.Encode(buf, image)
+		_, err := db.AddFile(buf)
 		if err != test.expectedErr {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedErr, err)
 		}
@@ -76,7 +78,7 @@ func TestDBSearch(t *testing.T) {
 		testIndex.err = test.expectedSearchErr
 		testIndex.matches = test.expectedMatches
 		db := NewDB(testIndex)
-		db.imageHasher = func(image.Image) (PHash, error) { return PHash(0), test.expectedHashErr }
+		db.hasher = func(image.Image) (PHash, error) { return PHash(0), test.expectedHashErr }
 
 		matches, err := db.Search(test.img, 0)
 		if test.expectedHashErr != nil && err != test.expectedHashErr {
@@ -93,13 +95,12 @@ func TestDBSearch(t *testing.T) {
 
 func TestDBSearchByFile(t *testing.T) {
 	tests := []struct {
-		reader            io.Reader
 		expectedMatches   []PHash
 		expectedHashErr   error
 		expectedSearchErr error
 	}{
-		{bytes.NewReader([]byte{}), []PHash{}, nil, nil},
-		{bytes.NewReader([]byte{}), []PHash{}, nil, fmt.Errorf("Some test error")},
+		{[]PHash{}, nil, nil},
+		{[]PHash{}, nil, fmt.Errorf("Some test error")},
 	}
 
 	for i, test := range tests {
@@ -107,9 +108,12 @@ func TestDBSearchByFile(t *testing.T) {
 		testIndex.err = test.expectedSearchErr
 		testIndex.matches = test.expectedMatches
 		db := NewDB(testIndex)
-		db.fileHasher = func(io.Reader) (PHash, error) { return PHash(0), test.expectedHashErr }
+		db.hasher = func(image.Image) (PHash, error) { return PHash(0), test.expectedHashErr }
 
-		matches, err := db.SearchByFile(test.reader, 0)
+		image := image.NewAlpha(image.Rect(0, 0, 1, 1))
+		buf := bytes.NewBuffer([]byte{})
+		png.Encode(buf, image)
+		matches, err := db.SearchByFile(buf, 0)
 		if test.expectedHashErr != nil && err != test.expectedHashErr {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedHashErr, err)
 		} else if test.expectedSearchErr != nil && err != test.expectedSearchErr {
