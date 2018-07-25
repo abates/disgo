@@ -46,6 +46,10 @@ func Hash(img image.Image) (PHash, error) {
 	return hash, nil
 }
 
+func (h PHash) MarshalBinary() ([]byte, error) {
+	return []byte{byte(h >> 56), byte(h >> 48), byte(h >> 40), byte(h >> 32), byte(h >> 24), byte(h >> 16), byte(h >> 8), byte(h)}, nil
+}
+
 func (h PHash) String() string {
 	return fmt.Sprintf("0x%016x   %064b", uint64(h), uint64(h))
 }
