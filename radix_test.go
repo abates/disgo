@@ -276,27 +276,25 @@ func TestRadixIndexSearch(t *testing.T) {
 	}
 }
 
-func TestRadixSave(t *testing.T) {
+func TestRadixMarshalBinary(t *testing.T) {
 	index := NewRadixIndex()
 	trn := &testRadixNode{}
 	trn.encodeBuf = []byte{0x73, 0x6f, 0x20, 0x6c, 0x6f, 0x6e, 0x67}
 	index.root = trn
 
-	buf := bytes.NewBuffer([]byte{})
-	index.Save(buf)
-	if !bytes.Equal(trn.encodeBuf, buf.Bytes()) {
+	buf, _ := index.MarshalBinary()
+	if !bytes.Equal(trn.encodeBuf, buf) {
 		t.Errorf("Expected %s got %s", trn.encodeBuf, buf)
 	}
 }
 
-func TestRadixIndexUnmarshal(t *testing.T) {
+func TestRadixIndexUnmarshalBinary(t *testing.T) {
 	index := NewRadixIndex()
 	trn := &testRadixNode{}
 	buf := []byte{0x61, 0x6e, 0x64, 0x20, 0x74, 0x68, 0x61, 0x6e, 0x6b, 0x73, 0x20, 0x66, 0x6f, 0x72, 0x20, 0x61, 0x6c, 0x6c, 0x20, 0x74, 0x68, 0x65, 0x20, 0x66, 0x69, 0x73, 0x68}
-	reader := bytes.NewReader(buf)
 	index.root = trn
 
-	index.Load(reader)
+	index.UnmarshalBinary(buf)
 	if !bytes.Equal(trn.decodeBuf, buf) {
 		t.Errorf("Expected %s got %s", buf, trn.decodeBuf)
 	}

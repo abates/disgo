@@ -1,30 +1,23 @@
 package disgo
 
 import (
+	"encoding"
 	"errors"
 	"image"
 	"io"
+	"io/ioutil"
 
 	"github.com/disintegration/imaging"
 )
 
 var (
-	ErrNotFound         = errors.New("Image not found")
-	ErrSaveNotSupported = errors.New("Underlying index does not support saving")
-	ErrLoadNotSupported = errors.New("Underlying index does not support loading")
+	ErrNotFound     = errors.New("Image not found")
+	ErrNotSupported = errors.New("Underlying index does not support loading or saving")
 )
 
 type Index interface {
 	Insert(PHash) error
 	Search(PHash, int) ([]PHash, error)
-}
-
-type Saveable interface {
-	Save(io.Writer) error
-}
-
-type Loadable interface {
-	Load(io.Reader) error
 }
 
 type DB struct {
@@ -66,17 +59,33 @@ func (db *DB) AddHash(hash PHash) error {
 }
 
 func (db *DB) Save(writer io.Writer) error {
-	if saver, ok := db.index.(Saveable); ok {
-		return saver.Save(writer)
+	buf, err := db.MarshalBinary()
+	if err == nil {
+		_, err = writer.Write(buf)
 	}
-	return ErrSaveNotSupported
+	return err
+}
+
+func (db *DB) MarshalBinary() ([]byte, error) {
+	if marshaler, ok := db.index.(encoding.BinaryMarshaler); ok {
+		return marshaler.MarshalBinary()
+	}
+	return nil, ErrNotSupported
 }
 
 func (db *DB) Load(reader io.Reader) error {
-	if loader, ok := db.index.(Loadable); ok {
-		return loader.Load(reader)
+	buf, err := ioutil.ReadAll(reader)
+	if err == nil {
+		err = db.UnmarshalBinary(buf)
 	}
-	return ErrLoadNotSupported
+	return err
+}
+
+func (db *DB) UnmarshalBinary(buf []byte) error {
+	if unmarshaler, ok := db.index.(encoding.BinaryUnmarshaler); ok {
+		return unmarshaler.UnmarshalBinary(buf)
+	}
+	return ErrNotSupported
 }
 
 func (db *DB) Search(img image.Image, maxDistance int) (matches []PHash, err error) {

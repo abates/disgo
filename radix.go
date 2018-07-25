@@ -1,6 +1,7 @@
 package disgo
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 )
@@ -245,10 +246,13 @@ func (ri *RadixIndex) Search(hash PHash, distance int) ([]PHash, error) {
 	return ri.root.Search(hash, 0x00, distance), nil
 }
 
-func (ri *RadixIndex) Save(writer io.Writer) error {
-	return ri.root.Encode(writer)
+func (ri *RadixIndex) MarshalBinary() ([]byte, error) {
+	writer := bytes.NewBuffer(nil)
+	err := ri.root.Encode(writer)
+	return writer.Bytes(), err
 }
 
-func (ri *RadixIndex) Load(reader io.Reader) error {
+func (ri *RadixIndex) UnmarshalBinary(buf []byte) error {
+	reader := bytes.NewReader(buf)
 	return ri.root.Decode(reader)
 }
